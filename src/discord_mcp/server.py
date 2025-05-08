@@ -561,7 +561,7 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
                     [
                         f"ID: {m['id']}\n{m['author']} ({m['timestamp']}): {m['content']}\n"
                         + (
-                            f"Reactions: {', '.join(f"{r['emoji']}({r['count']})" for r in m['reactions'])}"
+                            f"Reactions: {', '.join('{}({})'.format(r['emoji'], r['count']) for r in m['reactions'])}"
                             if m["reactions"]
                             else "Reactions: No reactions"
                         )
