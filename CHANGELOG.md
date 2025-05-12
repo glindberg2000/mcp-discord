@@ -18,4 +18,10 @@
 - fix: Discord MCP server and config updates
 
 ## [Initial Release]
-- Upstream MCP Discord server import 
+- Upstream MCP Discord server import
+
+## [docs: Add documentation for agent backlog processing pattern (batch unread, humanlike context handling)]
+- docs: Add documentation for agent backlog processing pattern (batch unread, humanlike context handling)
+
+## [feat(upcoming): Will implement agent logic to fetch all unread messages as a batch, pass to agent logic, update last seen message ID, and switch to real-time listening]
+- feat(upcoming): Will implement agent logic to fetch all unread messages as a batch, pass to agent logic, update last seen message ID, and switch to real-time listening 

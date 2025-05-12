@@ -135,3 +135,25 @@ See [CHANGELOG.md](CHANGELOG.md) for a summary of all patches and enhancements.
 - Processes all unread messages in order, updating last seen ID after each
 - Switches to wait_for_message for real-time event-driven workflow
 - Ensures no missed or double-processed messages, even if agent was offline 
+
+## Agent Backlog Processing Pattern (Humanlike Robustness)
+
+### Rationale
+Agents should not process unread messages one-by-one, as this can lead to acting on outdated or cancelled instructions. Instead, agents should fetch all unread messages as a batch and reason over the full context, just as a human would when catching up on a conversation.
+
+### Workflow
+- On startup/login, call `get_unread_messages` with the last seen message ID.
+- Pass the entire batch of unread messages to the agent's decision logic.
+- The agent should reason over the full backlog, taking into account reversals, clarifications, and cancellations.
+- After processing, update and persist the last seen message ID.
+- Switch to real-time listening with `wait_for_message`.
+- On new message, repeat the backlog fetch and processing.
+
+### Implementation Steps
+1. Fetch all unread messages as a batch.
+2. Pass the batch to agent logic for context-aware decision making.
+3. Update and persist the last seen message ID.
+4. Use `wait_for_message` for real-time operation.
+5. On new message, repeat backlog fetch and processing.
+
+This pattern is now the recommended approach for all Discord agent workflows in this repo. 

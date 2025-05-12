@@ -76,6 +76,34 @@ uv pip install -e .
     }
 ```
 
+## Agent Backlog Processing Pattern (Humanlike Robustness)
+
+### Rationale
+In real-world chat, instructions may be superseded, clarified, or cancelled by later messages. A human would always read the full backlog before acting, not just process messages one-by-one. To make agents robust and context-aware, our workflow mimics this behavior.
+
+### Workflow
+1. **Fetch all unread messages as a batch** using `get_unread_messages` with the last seen message ID.
+2. **Pass the entire batch to the agent's decision logic** (AI or rules). The agent can:
+   - Read the backlog in order (oldest to newest)
+   - Notice if later messages change, clarify, or cancel earlier ones
+   - Decide what to do based on the *latest* and *aggregate* context
+3. **Update the last seen message ID** to the newest message in the batch (for replay/duplicate protection).
+4. **Switch to real-time listening** using `wait_for_message` for new incoming messages. On receiving a new message, repeat the backlog fetch (in case of multiple new messages).
+
+### Why This Pattern?
+- Prevents agents from acting on outdated or cancelled instructions
+- Handles reversals, clarifications, and corrections naturally
+- Mimics how a human would catch up on a conversation
+- Ensures no messages are missed, even after downtime
+
+### Implementation Steps
+- On startup/login, call `get_unread_messages` with the last seen message ID
+- Pass the full list to agent logic for context-aware decision making
+- Update and persist the last seen message ID after processing
+- After backlog, use `wait_for_message` for real-time operation
+- On new message, repeat backlog fetch and processing
+
+This pattern is now the recommended approach for all Discord agent workflows in this repo.
 
 ## License
 
