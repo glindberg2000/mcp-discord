@@ -36,6 +36,9 @@ app = Server("discord-server")
 # Store Discord client reference
 discord_client = None
 
+# --- Agent Status Tracking ---
+agent_status = {"status": "offline", "details": None}
+
 
 @bot.event
 async def on_ready():
@@ -578,6 +581,25 @@ async def list_tools() -> List[Tool]:
                     },
                 },
                 "required": ["channel_id"],
+            },
+        ),
+        # --- Agent Status Tool ---
+        Tool(
+            name="set_agent_status",
+            description="Set the agent's status (available, working, offline, etc.) and update Discord presence.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Agent status: available, working, offline, etc.",
+                    },
+                    "details": {
+                        "type": "string",
+                        "description": "Optional custom status message or activity.",
+                    },
+                },
+                "required": ["status"],
             },
         ),
     ]
@@ -1462,6 +1484,34 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
                         for m in filtered
                     ]
                 ),
+            )
+        ]
+
+    elif name == "set_agent_status":
+        status = arguments["status"].lower()
+        details = arguments.get("details")
+        agent_status["status"] = status
+        agent_status["details"] = details
+        # Map status to Discord presence
+        activity = None
+        discord_status = discord.Status.online
+        if status == "available":
+            activity = discord.Game(details or "Available")
+            discord_status = discord.Status.online
+        elif status == "working":
+            activity = discord.Game(details or "Working")
+            discord_status = discord.Status.online
+        elif status == "offline":
+            activity = discord.Game(details or "Offline")
+            discord_status = discord.Status.invisible
+        else:
+            activity = discord.Game(details or status.capitalize())
+            discord_status = discord.Status.online
+        await discord_client.change_presence(status=discord_status, activity=activity)
+        return [
+            TextContent(
+                type="text",
+                text=f"Agent status set to '{status}'{' with details: ' + details if details else ''}.",
             )
         ]
 

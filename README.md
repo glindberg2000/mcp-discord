@@ -37,6 +37,9 @@ The Discord MCP Server provides a comprehensive set of tools for interacting wit
 - `kick_user`: Kick users from the server
 - `ban_user`: Ban users with optional message deletion
 
+### Agent Status Management
+- `set_agent_status`: Set the agent's status (available, working, offline, etc.) and update Discord presence for visibility
+
 ## Installation
 
 1. Clone and set up the environment:
@@ -124,6 +127,30 @@ This pattern is now the recommended approach for all Discord agent workflows in 
 5. On new message, repeat from step 2.
 
 This approach ensures no missed or double-processed messages and is compatible with Cursor and other AI agent frameworks.
+
+## Agent Status Management
+
+The `set_agent_status` tool allows agents to set their current status and update the bot's Discord presence accordingly. This is useful for both internal agent state tracking and for making the agent's state visible to Discord users.
+
+**Parameters:**
+- `status` (string): The agent's status (e.g., `available`, `working`, `offline`, or custom)
+- `details` (string, optional): Custom status message or activity (shown in Discord)
+
+**Example usage:**
+```json
+{
+  "status": "working",
+  "details": "Processing tasks"
+}
+```
+
+**Status mapping:**
+- `available`: Online, activity "Available"
+- `working`: Online, activity "Working"
+- `offline`: Invisible, activity "Offline"
+- Custom: Online, activity set to custom value
+
+Agents should call this tool when entering waiting mode (set to `available`), when working (set to `working`), or when going offline (set to `offline`).
 
 ## License
 
