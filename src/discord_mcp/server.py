@@ -542,7 +542,7 @@ async def list_tools() -> List[Tool]:
         ),
         Tool(
             name="get_unread_messages",
-            description="Get unread messages in a channel since a given message ID (optional). Returns messages newer than since_message_id, up to limit.",
+            description="Get unread messages in a channel since a given message ID (optional). Returns messages newer than since_message_id, up to limit. Supports filtering by sender, mention, DM, and content regex.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -559,6 +559,22 @@ async def list_tools() -> List[Tool]:
                         "description": "Number of messages to fetch (max 100)",
                         "minimum": 1,
                         "maximum": 100,
+                    },
+                    "sender_id": {
+                        "type": "string",
+                        "description": "Only return messages from this user ID (optional)",
+                    },
+                    "mention_only": {
+                        "type": "boolean",
+                        "description": "Only return messages mentioning the bot (optional)",
+                    },
+                    "dm_only": {
+                        "type": "boolean",
+                        "description": "Only return DMs (optional)",
+                    },
+                    "content_regex": {
+                        "type": "string",
+                        "description": "Regex to match message content (optional)",
                     },
                 },
                 "required": ["channel_id"],
@@ -1396,42 +1412,54 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
         limit = min(int(arguments.get("limit", 20)), 100)
         since_message_id = arguments.get("since_message_id")
+        sender_id = arguments.get("sender_id")
+        mention_only = bool(arguments.get("mention_only", False))
+        dm_only = bool(arguments.get("dm_only", False))
+        content_regex = arguments.get("content_regex")
         messages = []
         if since_message_id:
             after_obj = discord.Object(id=int(since_message_id))
             async for message in channel.history(
                 limit=limit, after=after_obj, oldest_first=True
             ):
-                messages.append(
-                    {
-                        "id": str(message.id),
-                        "author": str(message.author),
-                        "content": message.content,
-                        "timestamp": message.created_at.isoformat(),
-                    }
-                )
+                messages.append(message)
             # Sort messages by timestamp ascending (oldest to newest)
-            messages.sort(key=lambda m: m["timestamp"])
+            messages.sort(key=lambda m: m.created_at)
         else:
             async for message in channel.history(limit=limit):
-                messages.append(
-                    {
-                        "id": str(message.id),
-                        "author": str(message.author),
-                        "content": message.content,
-                        "timestamp": message.created_at.isoformat(),
-                    }
-                )
+                messages.append(message)
             # Sort messages by timestamp descending (newest to oldest)
-            messages.sort(key=lambda m: m["timestamp"], reverse=True)
+            messages.sort(key=lambda m: m.created_at, reverse=True)
+        # Apply filtering
+        filtered = []
+        for message in messages:
+            if sender_id and str(message.author.id) != str(sender_id):
+                continue
+            if mention_only and discord_client.user not in message.mentions:
+                continue
+            if dm_only and message.guild is not None:
+                continue
+            if content_regex:
+                import re
+
+                if not re.search(content_regex, message.content):
+                    continue
+            filtered.append(
+                {
+                    "id": str(message.id),
+                    "author": str(message.author),
+                    "content": message.content,
+                    "timestamp": message.created_at.isoformat(),
+                }
+            )
         return [
             TextContent(
                 type="text",
-                text=f"Unread messages ({len(messages)}):\n\n"
+                text=f"Unread messages ({len(filtered)}):\n\n"
                 + "\n".join(
                     [
                         f"ID: {m['id']}\n{m['author']} ({m['timestamp']}): {m['content']}"
-                        for m in messages
+                        for m in filtered
                     ]
                 ),
             )
