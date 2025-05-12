@@ -8,7 +8,53 @@ This document outlines the design and rationale for adding a modular, event-driv
 ## Motivation
 - **Polling is inefficient** for real-time chat/agent workflows, wasting compute and API tokens.
 - **WebSocket/event-driven** models allow agents to wait for messages efficiently, just like our custom chat server bot.
-- **Modularization** enables code reuse across Discord, Slack, and custom chat MCP tools, and makes future maintenance and PRs easier.
+- **Modularization** enables code reuse for other chat platforms.
+
+---
+
+## Robust Agent Workflow for Unread Message Handling
+
+### Key Principle
+- **Discord message IDs are unique, strictly increasing, and chronologically ordered.**
+- This allows agents to reliably track which messages have been seen and process any missed messages in order.
+
+### Step-by-Step Workflow
+1. **Track the Last Seen Message ID:**
+   - Store the highest message ID the agent has processed (not just sent).
+   - On startup, load this from a file, database, or (if stateless) set to the last message the agent sent.
+
+2. **On Login:**
+   - Call `get_unread_messages` with the last seen message ID.
+   - Process all returned messages in order (oldest to newest).
+   - After each message, update the last seen message ID.
+
+3. **After Each Task:**
+   - Before waiting for new messages, check for any new messages since the last seen ID.
+   - Process and update the last seen ID as above.
+
+4. **Switch to Real-Time Waiting:**
+   - Once the backlog is empty, use `wait_for_message` to catch new, real-time messages as they arrive.
+
+5. **Fallback for Stateless Agents:**
+   - If the agent cannot persist state, fetch the last N messages and process any with a higher ID than the last message it sent.
+
+### Why This Works
+- **No missed messages:** All messages sent while the agent was offline are processed on login.
+- **No double-processing:** Each message is only handled once, thanks to the unique, increasing ID.
+- **Chronological order:** Tasks are processed in the order they were sent, just like a human would.
+
+---
+
+## Implementation Notes
+- The `get_unread_messages` tool should always be called with the last seen message ID.
+- The agent should update its last seen message ID after each processed message.
+- This pattern is robust and can be adapted for any chat platform with unique, ordered message IDs.
+
+---
+
+## See also
+- `event_waiter.py` for the modular event-driven message waiter implementation.
+- `server.py` for MCP tool registration and usage examples.
 
 ---
 

@@ -1397,19 +1397,33 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         limit = min(int(arguments.get("limit", 20)), 100)
         since_message_id = arguments.get("since_message_id")
         messages = []
-        async for message in channel.history(limit=limit, oldest_first=True):
-            if since_message_id and int(message.id) <= int(since_message_id):
-                continue
-            messages.append(
-                {
-                    "id": str(message.id),
-                    "author": str(message.author),
-                    "content": message.content,
-                    "timestamp": message.created_at.isoformat(),
-                }
-            )
-        # Sort messages by timestamp ascending (oldest to newest)
-        messages.sort(key=lambda m: m["timestamp"])
+        if since_message_id:
+            after_obj = discord.Object(id=int(since_message_id))
+            async for message in channel.history(
+                limit=limit, after=after_obj, oldest_first=True
+            ):
+                messages.append(
+                    {
+                        "id": str(message.id),
+                        "author": str(message.author),
+                        "content": message.content,
+                        "timestamp": message.created_at.isoformat(),
+                    }
+                )
+            # Sort messages by timestamp ascending (oldest to newest)
+            messages.sort(key=lambda m: m["timestamp"])
+        else:
+            async for message in channel.history(limit=limit):
+                messages.append(
+                    {
+                        "id": str(message.id),
+                        "author": str(message.author),
+                        "content": message.content,
+                        "timestamp": message.created_at.isoformat(),
+                    }
+                )
+            # Sort messages by timestamp descending (newest to oldest)
+            messages.sort(key=lambda m: m["timestamp"], reverse=True)
         return [
             TextContent(
                 type="text",

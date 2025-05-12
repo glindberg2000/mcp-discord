@@ -3,6 +3,17 @@ event_waiter.py
 
 A modular, event-driven message waiter for Discord MCP tools.
 Supports flexible filtering (channel, DM, mention, sender, content) and can be adapted for other chat platforms.
+
+---
+
+Robust Unread Message Handling:
+- Always track the last seen message ID (Discord message IDs are unique and strictly increasing).
+- On login, call get_unread_messages(channel_id, since_message_id=last_seen_id) to fetch all missed messages.
+- Process all unread messages in order, updating last_seen_id after each.
+- After backlog is empty, use wait_for_message for real-time events.
+- This ensures no missed or double-processed messages, even if the agent was offline.
+
+See DESIGN_PLAN.md for full workflow details.
 """
 
 import asyncio
