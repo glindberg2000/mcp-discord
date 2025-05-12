@@ -133,24 +133,25 @@ This approach ensures no missed or double-processed messages and is compatible w
 The `set_agent_status` tool allows agents to set their current status and update the bot's Discord presence accordingly. This is useful for both internal agent state tracking and for making the agent's state visible to Discord users.
 
 **Parameters:**
-- `status` (string): The agent's status (e.g., `available`, `working`, `offline`, or custom)
+- `status` (string): The agent's status (e.g., `available`, `waiting`, `working`, `offline`, or custom)
 - `details` (string, optional): Custom status message or activity (shown in Discord)
 
 **Example usage:**
 ```json
 {
-  "status": "working",
-  "details": "Processing tasks"
+  "status": "waiting"
 }
 ```
 
 **Status mapping:**
-- `available`: Online, activity "Available"
+- `available` or `waiting`: Online, activity "Ready for tasks"
 - `working`: Online, activity "Working"
 - `offline`: Invisible, activity "Offline"
-- Custom: Online, activity set to custom value
+- Custom: Online, activity set to custom value (details or status)
 
-Agents should call this tool when entering waiting mode (set to `available`), when working (set to `working`), or when going offline (set to `offline`).
+The bot's presence is always clear and human-friendly, making it easy for users to see if the agent is ready, working, or offline.
+
+Agents should call this tool when entering waiting mode (set to `available` or `waiting`), when working (set to `working`), or when going offline (set to `offline`).
 
 ## License
 

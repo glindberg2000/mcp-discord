@@ -1492,11 +1492,11 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         details = arguments.get("details")
         agent_status["status"] = status
         agent_status["details"] = details
-        # Map status to Discord presence
+        # Map status to Discord presence with human-friendly messages
         activity = None
         discord_status = discord.Status.online
-        if status == "available":
-            activity = discord.Game(details or "Available")
+        if status in ("available", "waiting"):
+            activity = discord.Game(details or "Ready for tasks")
             discord_status = discord.Status.online
         elif status == "working":
             activity = discord.Game(details or "Working")
