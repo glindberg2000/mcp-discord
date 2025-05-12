@@ -105,6 +105,26 @@ In real-world chat, instructions may be superseded, clarified, or cancelled by l
 
 This pattern is now the recommended approach for all Discord agent workflows in this repo.
 
+## Agent Usage Notes (Cursor/AI Agents)
+
+- The MCP Discord server provides stateless tools for message and backlog handling.
+- **Agents (like Cursor or your own bots) are responsible for:**
+  - Tracking the last seen message ID (per channel or context).
+  - Calling `get_unread_messages` with the last seen message ID to fetch all unread messages (up to 100 at a time).
+  - Paginating if there are more than 100 unread messages (call again with the new last seen ID).
+  - After processing the backlog, use `wait_for_message` for real-time events.
+- The MCP server does **not** maintain agent state or run loops for you; it only responds to explicit tool calls.
+- This pattern is robust, humanlike, and works for all agent types.
+
+**Example agent workflow:**
+1. On startup, load last seen message ID (if any).
+2. Call `get_unread_messages` with that ID to fetch backlog.
+3. Process all messages, update last seen ID.
+4. Call `wait_for_message` to wait for new messages.
+5. On new message, repeat from step 2.
+
+This approach ensures no missed or double-processed messages and is compatible with Cursor and other AI agent frameworks.
+
 ## License
 
 MIT License - see LICENSE file for details.
