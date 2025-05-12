@@ -10,6 +10,7 @@ from discord.ext import commands
 from mcp.server import Server
 from mcp.types import Tool, TextContent, EmptyResult
 from mcp.server.stdio import stdio_server
+from .event_waiter import wait_for_message
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -503,6 +504,64 @@ async def list_tools() -> List[Tool]:
                     },
                 },
                 "required": ["user_id"],
+            },
+        ),
+        Tool(
+            name="wait_for_message",
+            description="Wait for a Discord message matching filters (channel, DM, mention, sender, content, timeout)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Channel ID to filter (optional)",
+                    },
+                    "dm_only": {
+                        "type": "boolean",
+                        "description": "Only match DMs (optional)",
+                    },
+                    "mention_only": {
+                        "type": "boolean",
+                        "description": "Only match messages mentioning the bot (optional)",
+                    },
+                    "sender_id": {
+                        "type": "string",
+                        "description": "Only match messages from this user ID (optional)",
+                    },
+                    "content_regex": {
+                        "type": "string",
+                        "description": "Regex to match message content (optional)",
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Timeout in seconds (optional)",
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="get_unread_messages",
+            description="Get unread messages in a channel since a given message ID (optional). Returns messages newer than since_message_id, up to limit.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Discord channel ID",
+                    },
+                    "since_message_id": {
+                        "type": "string",
+                        "description": "Only return messages after this message ID (optional)",
+                    },
+                    "limit": {
+                        "type": "number",
+                        "description": "Number of messages to fetch (max 100)",
+                        "minimum": 1,
+                        "maximum": 100,
+                    },
+                },
+                "required": ["channel_id"],
             },
         ),
     ]
@@ -1296,6 +1355,73 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
                     text="Bot doesn't have permission to ban this user. Make sure the bot's role is higher than the user's role.",
                 )
             ]
+
+    elif name == "wait_for_message":
+        # Parse arguments
+        channel = (
+            int(arguments["channel_id"])
+            if "channel_id" in arguments and arguments["channel_id"]
+            else None
+        )
+        dm_only = bool(arguments.get("dm_only", False))
+        mention_only = bool(arguments.get("mention_only", False))
+        sender = (
+            int(arguments["sender_id"])
+            if "sender_id" in arguments and arguments["sender_id"]
+            else None
+        )
+        content_regex = arguments.get("content_regex")
+        timeout = (
+            float(arguments["timeout"])
+            if "timeout" in arguments and arguments["timeout"]
+            else None
+        )
+        try:
+            msg = await wait_for_message(
+                discord_client,
+                channel=channel,
+                dm_only=dm_only,
+                mention_only=mention_only,
+                sender=sender,
+                content_regex=content_regex,
+                timeout=timeout,
+            )
+            return [TextContent(type="text", text=f"Received message: {msg}")]
+        except TimeoutError:
+            return [
+                TextContent(type="text", text="Timeout: No matching message received.")
+            ]
+
+    elif name == "get_unread_messages":
+        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+        limit = min(int(arguments.get("limit", 20)), 100)
+        since_message_id = arguments.get("since_message_id")
+        messages = []
+        async for message in channel.history(limit=limit, oldest_first=True):
+            if since_message_id and int(message.id) <= int(since_message_id):
+                continue
+            messages.append(
+                {
+                    "id": str(message.id),
+                    "author": str(message.author),
+                    "content": message.content,
+                    "timestamp": message.created_at.isoformat(),
+                }
+            )
+        # Sort messages by timestamp ascending (oldest to newest)
+        messages.sort(key=lambda m: m["timestamp"])
+        return [
+            TextContent(
+                type="text",
+                text=f"Unread messages ({len(messages)}):\n\n"
+                + "\n".join(
+                    [
+                        f"ID: {m['id']}\n{m['author']} ({m['timestamp']}): {m['content']}"
+                        for m in messages
+                    ]
+                ),
+            )
+        ]
 
     raise ValueError(f"Unknown tool: {name}")
 
