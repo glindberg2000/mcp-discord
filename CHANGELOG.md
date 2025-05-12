@@ -1,8 +1,17 @@
 # Changelog for glindberg2000/mcp-discord
 
 ## [Unreleased]
-- Add event-driven `wait_for_message` MCP tool for efficient agent workflows (planned)
-  - Supports filtering by channel, DM, mention, sender, and content regex
+- fix: get_unread_messages now fetches latest messages if no since_message_id is provided; robust unread and first-login agent workflow
+- [x] Event-driven wait_for_message tool for efficient agent workflows
+- [x] Robust unread message handling using message IDs (get_unread_messages)
+- [ ] Mention/DM/Author Filtering for targeted agent triggers
+- [ ] Duplicate/Replay Protection (track last seen message ID per channel)
+- [ ] Backlog Processing Loop (process all unread, then wait for new)
+- [ ] Graceful Error Handling & Logging for auditability
+- [ ] Multi-Channel/DM Support (track unread per channel/DM)
+- [ ] Agent Identity & Presence (set status: available/working)
+- [ ] History Search/Recall (search message history for context)
+- [ ] Configurable Filters & Triggers (runtime config for triggers)
 
 ## [fix-fstring-syntax] - 2025-05-11
 - fix: remove nested f-string in reactions join (Python compatibility)

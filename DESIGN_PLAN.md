@@ -108,4 +108,30 @@ See [CHANGELOG.md](CHANGELOG.md) for a summary of all patches and enhancements.
 ## Future Work
 - Adapt the module for Slack and custom chat MCP tools.
 - Add more advanced filtering (e.g., reactions, attachments).
-- Contribute the enhancement upstream via PR. 
+- Contribute the enhancement upstream via PR.
+
+---
+
+## Current Status
+- [x] Event-driven wait_for_message tool for efficient agent workflows
+- [x] Robust unread message handling using message IDs (get_unread_messages)
+
+## Next Steps for Humanlike Agent Robustness
+
+- [ ] Mention/DM/Author Filtering for targeted agent triggers
+- [ ] Duplicate/Replay Protection (track last seen message ID per channel)
+- [ ] Backlog Processing Loop (process all unread, then wait for new)
+- [ ] Graceful Error Handling & Logging for auditability
+- [ ] Multi-Channel/DM Support (track unread per channel/DM)
+- [ ] Agent Identity & Presence (set status: available/working)
+- [ ] History Search/Recall (search message history for context)
+- [ ] Configurable Filters & Triggers (runtime config for triggers)
+
+---
+
+## Robust Unread Message Logic
+- On login, agent calls get_unread_messages with last seen message ID (if available)
+- If no last seen ID, fetches latest N messages for first login
+- Processes all unread messages in order, updating last seen ID after each
+- Switches to wait_for_message for real-time event-driven workflow
+- Ensures no missed or double-processed messages, even if agent was offline 
