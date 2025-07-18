@@ -13,16 +13,9 @@ from mcp.types import Tool, TextContent, EmptyResult
 from mcp.server.stdio import stdio_server
 from .event_waiter import wait_for_message
 
-# Load environment variables from .env file
-# Try user-specific .env first, then fall back to default .env
-import getpass
-
-username = getpass.getuser()
-user_env_file = f".env.{username}"
-if os.path.exists(user_env_file):
-    load_dotenv(user_env_file)
-else:
-    load_dotenv()
+# Load environment variables from .env file (fallback only)
+# Environment variables should be provided via MCP server configuration
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
