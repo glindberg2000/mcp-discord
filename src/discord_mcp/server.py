@@ -23,13 +23,9 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("discord-mcp-server")
 
-# Discord bot setup
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-if not DISCORD_TOKEN:
-    raise ValueError("DISCORD_TOKEN environment variable is required")
-
-# Default server ID (can be overridden with environment variable)
-DEFAULT_SERVER_ID = os.getenv("DEFAULT_SERVER_ID")
+# Discord bot setup - will be set in main() function
+DISCORD_TOKEN = None
+DEFAULT_SERVER_ID = None
 
 # Initialize MCP server
 app = Server("discord-server")
@@ -1604,16 +1600,17 @@ async def main():
     # Use command line args if provided, otherwise fall back to environment variables
     global DISCORD_TOKEN, DEFAULT_SERVER_ID
 
-    token = args.token or DISCORD_TOKEN
-    server_id = args.server_id or DEFAULT_SERVER_ID
+    # Get token from command line args or environment variables
+    token = args.token or os.getenv("DISCORD_TOKEN")
+    server_id = args.server_id or os.getenv("DEFAULT_SERVER_ID")
 
-    if token:
-        # Override the global DISCORD_TOKEN
-        DISCORD_TOKEN = token
+    # Validate that we have a token
+    if not token:
+        raise ValueError("DISCORD_TOKEN is required. Provide via --token argument or DISCORD_TOKEN environment variable.")
 
-    if server_id:
-        # Override the global DEFAULT_SERVER_ID
-        DEFAULT_SERVER_ID = server_id
+    # Set global variables
+    DISCORD_TOKEN = token
+    DEFAULT_SERVER_ID = server_id
 
     # Create a new bot instance for this process using the factory
     bot = create_bot_instance(token)
@@ -1621,8 +1618,17 @@ async def main():
     # Store the bot instance in the app for access by tools
     app.bot_instance = bot
 
-    # Start Discord bot in the background
-    asyncio.create_task(bot.start(token))
+    # Start Discord bot and wait for it to be ready
+    bot_task = asyncio.create_task(bot.start(token))
+    
+    # Wait for the bot to be ready (with timeout)
+    try:
+        await asyncio.wait_for(bot.wait_until_ready(), timeout=30.0)
+        logger.info("Discord bot is ready, starting MCP server")
+    except asyncio.TimeoutError:
+        logger.warning("Discord bot connection timeout, starting MCP server anyway")
+    except Exception as e:
+        logger.error(f"Error waiting for Discord bot: {e}")
 
     # Run MCP server
     async with stdio_server() as (read_stream, write_stream):
