@@ -1,6 +1,8 @@
 import os
 import asyncio
 import logging
+import argparse
+import sys
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from functools import wraps
@@ -29,50 +31,53 @@ if not DISCORD_TOKEN:
 # Default server ID (can be overridden with environment variable)
 DEFAULT_SERVER_ID = os.getenv("DEFAULT_SERVER_ID")
 
-# Initialize Discord bot with necessary intents
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-bot = commands.Bot(command_prefix="!", intents=intents)
-
 # Initialize MCP server
 app = Server("discord-server")
 
-# Store Discord client reference
-discord_client = None
-
 # --- Agent Status Tracking ---
-agent_status = {"status": "offline", "details": None}
+# (Moved to bot instances)
 
 
-@bot.event
-async def on_ready():
-    global discord_client
-    discord_client = bot
-    logger.info(f"Logged in as {bot.user.name}")
-    logger.info(f"Bot is ready and connected to Discord!")
+# Bot factory function to create isolated instances
+def create_bot_instance(token: str):
+    """Create a new Discord bot instance with the given token."""
+    intents = discord.Intents.default()
+    intents.message_content = True
+    intents.members = True
+    bot = commands.Bot(command_prefix="!", intents=intents)
 
+    # Store bot-specific data
+    bot.discord_client = None
+    bot.agent_status = {"status": "offline", "details": None}
 
-@bot.event
-async def on_disconnect():
-    global discord_client
-    discord_client = None
-    logger.warning("Bot disconnected from Discord")
+    @bot.event
+    async def on_ready():
+        bot.discord_client = bot
+        logger.info(f"Logged in as {bot.user.name}")
+        logger.info(f"Bot is ready and connected to Discord!")
 
+    @bot.event
+    async def on_disconnect():
+        bot.discord_client = None
+        logger.warning("Bot disconnected from Discord")
 
-@bot.event
-async def on_error(event, *args, **kwargs):
-    logger.error(f"Discord bot error in event {event}: {args} {kwargs}")
+    @bot.event
+    async def on_error(event, *args, **kwargs):
+        logger.error(f"Discord bot error in event {event}: {args} {kwargs}")
+
+    return bot
 
 
 # Helper function to ensure Discord client is ready
 def require_discord_client(func):
     @wraps(func)
     async def wrapper(*args, **kwargs):
-        if not discord_client:
+        # Get the current bot instance from the context
+        bot = getattr(func, "_bot_instance", None)
+        if not bot or not bot.discord_client:
             logger.error("Discord client not ready - bot may not be connected")
             raise RuntimeError("Discord client not ready")
-        if not discord_client.is_ready():
+        if not bot.discord_client.is_ready():
             logger.error("Discord client is not ready - connection may be in progress")
             raise RuntimeError("Discord client not ready")
         return await func(*args, **kwargs)
@@ -637,9 +642,15 @@ async def list_tools() -> List[Tool]:
 
 
 @app.call_tool()
-@require_discord_client
 async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     """Handle Discord tool calls."""
+    
+    # Get the bot instance from the app
+    bot = getattr(app, 'bot_instance', None)
+    if not bot or not bot.discord_client:
+        return [TextContent(type="text", text="Error: Discord client not ready")]
+    
+    discord_client = bot.discord_client
 
     if name == "send_message":
         channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
@@ -1521,8 +1532,8 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
     elif name == "set_agent_status":
         status = arguments["status"].lower()
         details = arguments.get("details")
-        agent_status["status"] = status
-        agent_status["details"] = details
+        bot.agent_status["status"] = status
+        bot.agent_status["details"] = details
         # Map status to Discord presence with human-friendly messages
         activity = None
         discord_status = discord.Status.online
@@ -1550,30 +1561,68 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
         # Check Discord connection status
         connection_info = {
             "discord_client_exists": discord_client is not None,
-            "discord_client_ready": discord_client.is_ready() if discord_client else False,
-            "bot_user": str(discord_client.user) if discord_client and discord_client.user else None,
+            "discord_client_ready": (
+                discord_client.is_ready() if discord_client else False
+            ),
+            "bot_user": (
+                str(discord_client.user)
+                if discord_client and discord_client.user
+                else None
+            ),
             "guilds_count": len(discord_client.guilds) if discord_client else 0,
-            "agent_status": agent_status,
+            "agent_status": bot.agent_status,
         }
-        
+
         status_text = f"Discord Connection Status:\n"
-        status_text += f"- Discord client exists: {connection_info['discord_client_exists']}\n"
-        status_text += f"- Discord client ready: {connection_info['discord_client_ready']}\n"
+        status_text += (
+            f"- Discord client exists: {connection_info['discord_client_exists']}\n"
+        )
+        status_text += (
+            f"- Discord client ready: {connection_info['discord_client_ready']}\n"
+        )
         status_text += f"- Bot user: {connection_info['bot_user']}\n"
         status_text += f"- Connected to {connection_info['guilds_count']} servers\n"
         status_text += f"- Agent status: {connection_info['agent_status']['status']}"
-        
-        if connection_info['agent_status']['details']:
+
+        if connection_info["agent_status"]["details"]:
             status_text += f" ({connection_info['agent_status']['details']})"
-        
+
         return [TextContent(type="text", text=status_text)]
 
     raise ValueError(f"Unknown tool: {name}")
 
 
 async def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Discord MCP Server")
+    parser.add_argument("--token", help="Discord bot token")
+    parser.add_argument("--server-id", help="Default Discord server ID")
+
+    # Parse known args (ignore unknown args that might be passed by uv)
+    args, unknown = parser.parse_known_args()
+
+    # Use command line args if provided, otherwise fall back to environment variables
+    global DISCORD_TOKEN, DEFAULT_SERVER_ID
+
+    token = args.token or DISCORD_TOKEN
+    server_id = args.server_id or DEFAULT_SERVER_ID
+
+    if token:
+        # Override the global DISCORD_TOKEN
+        DISCORD_TOKEN = token
+
+    if server_id:
+        # Override the global DEFAULT_SERVER_ID
+        DEFAULT_SERVER_ID = server_id
+
+    # Create a new bot instance for this process using the factory
+    bot = create_bot_instance(token)
+
+    # Store the bot instance in the app for access by tools
+    app.bot_instance = bot
+
     # Start Discord bot in the background
-    asyncio.create_task(bot.start(DISCORD_TOKEN))
+    asyncio.create_task(bot.start(token))
 
     # Run MCP server
     async with stdio_server() as (read_stream, write_stream):
