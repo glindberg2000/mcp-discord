@@ -69,6 +69,17 @@ async def wait_for_message(
             client=client,
         ):
             if not future.done():
+                # Include attachment information if present
+                attachments = []
+                if message.attachments:
+                    for att in message.attachments:
+                        attachments.append({
+                            "filename": att.filename,
+                            "url": att.url,
+                            "size": att.size,
+                            "content_type": getattr(att, 'content_type', 'unknown')
+                        })
+                
                 future.set_result(
                     {
                         "id": str(message.id),
@@ -76,6 +87,7 @@ async def wait_for_message(
                         "content": message.content,
                         "timestamp": message.created_at.isoformat(),
                         "channel_id": str(message.channel.id),
+                        "attachments": attachments,
                     }
                 )
             if on_event:

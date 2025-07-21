@@ -634,6 +634,104 @@ async def list_tools() -> List[Tool]:
                 "required": [],
             },
         ),
+        
+        # File Operations
+        Tool(
+            name="send_file",
+            description="Upload a file to a Discord channel",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Discord channel ID where the file should be sent",
+                    },
+                    "file_path": {
+                        "type": "string", 
+                        "description": "Local file path to upload",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Optional custom filename (defaults to original filename)",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Optional message text to send with the file",
+                    },
+                },
+                "required": ["channel_id", "file_path"],
+            },
+        ),
+        Tool(
+            name="send_file_from_bytes",
+            description="Upload a file from bytes data to Discord channel",
+            inputSchema={
+                "type": "object", 
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Discord channel ID where the file should be sent",
+                    },
+                    "file_data": {
+                        "type": "string",
+                        "description": "Base64 encoded file data",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "Filename for the uploaded file",
+                    },
+                    "content": {
+                        "type": "string", 
+                        "description": "Optional message text to send with the file",
+                    },
+                },
+                "required": ["channel_id", "file_data", "filename"],
+            },
+        ),
+        Tool(
+            name="get_message_attachments", 
+            description="Get list of attachments from a specific message",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Discord channel ID",
+                    },
+                    "message_id": {
+                        "type": "string", 
+                        "description": "Discord message ID",
+                    },
+                },
+                "required": ["channel_id", "message_id"],
+            },
+        ),
+        Tool(
+            name="download_attachment",
+            description="Download an attachment from a Discord message to local storage",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "Discord channel ID",
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "Discord message ID",
+                    },
+                    "attachment_filename": {
+                        "type": "string",
+                        "description": "Filename of the attachment to download",
+                    },
+                    "save_path": {
+                        "type": "string",
+                        "description": "Local path where the file should be saved (optional, defaults to downloads/filename)",
+                    },
+                },
+                "required": ["channel_id", "message_id", "attachment_filename"],
+            },
+        ),
     ]
 
 
@@ -1584,6 +1682,123 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
             status_text += f" ({connection_info['agent_status']['details']})"
 
         return [TextContent(type="text", text=status_text)]
+
+    # File Operations
+    elif name == "send_file":
+        import os
+        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+        file_path = arguments["file_path"]
+        filename = arguments.get("filename")
+        content = arguments.get("content", "")
+        
+        try:
+            if not os.path.exists(file_path):
+                return [TextContent(type="text", text=f"Error: File not found at path: {file_path}")]
+            
+            discord_file = discord.File(file_path, filename=filename)
+            message = await channel.send(content=content, file=discord_file)
+            
+            return [TextContent(
+                type="text", 
+                text=f"File uploaded successfully. Message ID: {message.id}, Filename: {filename or os.path.basename(file_path)}"
+            )]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error uploading file: {str(e)}")]
+
+    elif name == "send_file_from_bytes":
+        import io
+        import base64
+        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+        file_data = arguments["file_data"]
+        filename = arguments["filename"]
+        content = arguments.get("content", "")
+        
+        try:
+            # Decode base64 data
+            bytes_data = base64.b64decode(file_data)
+            file_obj = io.BytesIO(bytes_data)
+            
+            discord_file = discord.File(file_obj, filename=filename)
+            message = await channel.send(content=content, file=discord_file)
+            
+            return [TextContent(
+                type="text",
+                text=f"File uploaded successfully from bytes. Message ID: {message.id}, Filename: {filename}"
+            )]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error uploading file from bytes: {str(e)}")]
+
+    elif name == "get_message_attachments":
+        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+        message_id = arguments["message_id"]
+        
+        try:
+            message = await channel.fetch_message(int(message_id))
+            attachments = []
+            
+            for att in message.attachments:
+                attachments.append({
+                    "filename": att.filename,
+                    "url": att.url,
+                    "size": att.size,
+                    "content_type": getattr(att, 'content_type', 'unknown')
+                })
+            
+            if attachments:
+                attachment_text = f"Found {len(attachments)} attachments:\n"
+                for att in attachments:
+                    attachment_text += f"- {att['filename']} ({att['size']} bytes, {att['content_type']})\n"
+                    attachment_text += f"  URL: {att['url']}\n"
+            else:
+                attachment_text = "No attachments found in this message."
+            
+            return [TextContent(type="text", text=attachment_text)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error getting message attachments: {str(e)}")]
+
+    elif name == "download_attachment":
+        import os
+        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+        message_id = arguments["message_id"]
+        attachment_filename = arguments["attachment_filename"]
+        save_path = arguments.get("save_path")
+        
+        try:
+            message = await channel.fetch_message(int(message_id))
+            
+            # Find the attachment
+            target_attachment = None
+            for attachment in message.attachments:
+                if attachment.filename == attachment_filename:
+                    target_attachment = attachment
+                    break
+            
+            if not target_attachment:
+                return [TextContent(
+                    type="text", 
+                    text=f"Error: Attachment '{attachment_filename}' not found in message"
+                )]
+            
+            # Set default save path if not provided
+            if not save_path:
+                # Create downloads directory in the working directory
+                downloads_dir = os.path.abspath("downloads")
+                os.makedirs(downloads_dir, exist_ok=True)
+                save_path = os.path.join(downloads_dir, attachment_filename)
+            else:
+                # Make save_path absolute and ensure directory exists
+                save_path = os.path.abspath(save_path)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            
+            # Download the attachment
+            await target_attachment.save(fp=save_path, use_cached=False)  # use_cached=False for non-images
+            
+            return [TextContent(
+                type="text",
+                text=f"Attachment downloaded successfully:\n- Filename: {attachment_filename}\n- Saved to: {save_path}\n- Absolute path: {os.path.abspath(save_path)}\n- Size: {target_attachment.size} bytes"
+            )]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error downloading attachment: {str(e)}")]
 
     raise ValueError(f"Unknown tool: {name}")
 
