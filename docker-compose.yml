@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  discord-http-api:
+    build: .
+    container_name: discord-stateless-api
+    ports:
+      - "9091:9091"
+    # Completely stateless - tokens passed per request
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - superagent-network
+
+  # Optional: Include PostgreSQL for testing
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: superagent-postgres-docker
+    ports:
+      - "5434:5432"  # Different port to avoid conflicts
+    environment:
+      - POSTGRES_USER=superagent
+      - POSTGRES_PASSWORD=superagent  
+      - POSTGRES_DB=superagent
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - superagent-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U superagent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  superagent-network:
+    driver: bridge
