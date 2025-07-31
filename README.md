@@ -190,6 +190,35 @@ DEFAULT_SERVER_ID=your_discord_server_id
 }
 ```
 
+### Claude Code MCP Configuration
+
+For direct integration with Claude Code using STDIO transport, use the following command:
+
+```bash
+# Add Discord MCP server to Claude Code
+claude mcp add discord-manager -- "/path/to/your/venv/bin/python" "-m" "discord_mcp.server" "--token" "YOUR_DISCORD_BOT_TOKEN" "--server-id" "YOUR_SERVER_ID"
+```
+
+**Important Notes:**
+- Replace `/path/to/your/venv/bin/python` with the actual path to your Python virtual environment
+- Replace `YOUR_DISCORD_BOT_TOKEN` with your Discord bot token
+- Replace `YOUR_SERVER_ID` with your Discord server ID
+- The `--` separator is required to prevent argument parsing conflicts
+- This creates a local MCP server configuration that persists across Claude Code sessions
+
+**Example with typical paths:**
+```bash
+claude mcp add discord-manager -- "/Users/username/project/mcp-discord-local/.venv/bin/python" "-m" "discord_mcp.server" "--token" "YOUR_BOT_TOKEN" "--server-id" "1234567890123456789"
+```
+
+**Verify Configuration:**
+```bash
+# List configured MCP servers
+claude mcp list
+
+# Expected output shows discord-manager as connected
+```
+
 ## 🐳 Container Deployment
 
 ### Docker Compose (Recommended)
